@@ -1,0 +1,30 @@
+CREATE TABLE IF NOT EXISTS advertiser (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    updated_at TIMESTAMP WITHOUT TIME ZONE,
+    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS campaign (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    bid NUMERIC(10,2) NOT NULL,
+    budget NUMERIC(10,2) NOT NULL,
+    start_date DATE,
+    end_date DATE,
+    advertiser_id INTEGER REFERENCES advertiser(id),
+    updated_at TIMESTAMP WITHOUT TIME ZONE,
+    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS impressions (
+    id SERIAL PRIMARY KEY,
+    campaign_id INTEGER REFERENCES campaign(id),
+    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS clicks (
+    id SERIAL PRIMARY KEY,
+    campaign_id INTEGER REFERENCES campaign(id),
+    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
+);

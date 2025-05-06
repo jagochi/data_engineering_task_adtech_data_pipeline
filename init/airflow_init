@@ -1,0 +1,24 @@
+FROM apache/airflow:2.10.3-python3.12
+
+USER root
+COPY pyproject.toml uv.lock init/airflow_start_services.sh /opt/airflow/
+
+RUN chown -R airflow: /opt/airflow
+RUN chown airflow: /opt/airflow/airflow_start_services.sh
+RUN chmod +x /opt/airflow/airflow_start_services.sh
+
+USER airflow
+WORKDIR /opt/airflow
+
+RUN pip install --upgrade pip
+RUN pip install uv
+RUN pip install psycopg
+RUN pip install airflow-clickhouse-plugin
+RUN pip install clickhouse-driver
+RUN pip install psycopg2-binary
+
+RUN uv sync # /home/airflow/.local/bin/uv sync
+
+ENV PATH="/home/airflow/.local/bin:$PATH"
+ENV PYTHONPATH="/home/airflow/.local/lib/python3.12/site-packages:$PYTHONPATH"
+ENV PIP_NO_USER_DIR=1

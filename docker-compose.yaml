@@ -1,0 +1,116 @@
+services:
+  # -------------------------------------
+  # PostgreSQL
+  # -------------------------------------
+  postgres:
+    image: postgres:17
+    restart: always # added
+    container_name: psql_source
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init/create_databases.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 5s
+      retries: 5
+
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+    ports:
+      - "5050:80"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # -------------------------------------
+  # ClickHouse
+  # -------------------------------------
+  clickhouse:
+    image: clickhouse/clickhouse-server
+    container_name: ch_analytics
+    environment:
+      CLICKHOUSE_USER: clickhouse #
+      CLICKHOUSE_PASSWORD: clickhouse #
+      CLICKHOUSE_DB: clickhouse #
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
+      interval: 5s
+      retries: 5
+
+  tabix:
+    image: spoonest/clickhouse-tabix-web-client
+    container_name: tabix
+    ports:
+      - "8081:80"
+    depends_on:
+      - clickhouse
+
+  # -------------------------------------
+  # Flyway Migrations
+  # -------------------------------------
+  flyway:
+    image: flyway/flyway
+    container_name: db_migrations
+    depends_on:
+      postgres:
+        condition: service_healthy
+        #restart: true
+    command: -url=jdbc:postgresql://postgres:5432/postgres -user=postgres -locations=filesystem:/flyway/sql migrate
+    volumes:
+      - ./migrations/:/flyway/sql
+    environment:
+      FLYWAY_CONNECT_RETRIES: 10
+
+  # -------------------------------------
+  # Airflow
+  # -------------------------------------
+  airflow:
+    build:
+        context: .
+        dockerfile: init/airflow_init
+    image: custom-airflow:2.10.3-python312
+    container_name: airflow
+    restart: always
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:postgres@postgres/airflow
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+      - ./plugins:/opt/airflow/plugins
+      - ./scripts:/opt/airflow/scripts
+      - ./pyproject.toml:/pyproject.toml
+      - ./uv.lock:/uv.lock
+      - ./init/airflow_start_services.sh:/opt/airflow/airflow_start_services.sh
+    ports:
+      - "8090:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    entrypoint: ["bash", "/opt/airflow/airflow_start_services.sh"]
+
+volumes:
+  postgres_data:
+  clickhouse_data:
